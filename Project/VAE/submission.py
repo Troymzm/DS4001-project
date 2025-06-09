@@ -19,11 +19,37 @@ class VAE(nn.Module):
         # TODO: 2.2.1 Define your encoder and decoder
         # Encoder
         # Output the mu_phi and log (sigma_phi)^2
-        raise ValueError("Not Implemented yet!")
+        self.encoder = nn.Sequential(
+            nn.Conv2d(1, 32, kernel_size=4, stride=2, padding=1),  # 28x28 -> 14x14
+            nn.LeakyReLU(0.2),
+            nn.Conv2d(32, 64, kernel_size=4, stride=2, padding=1),  # 14x14 -> 7x7
+            nn.LeakyReLU(0.2),
+            nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1),  # 7x7 -> 7x7
+            nn.LeakyReLU(0.2),
+            nn.Flatten(),  # 7x7x128 = 6272
+            nn.Linear(6272, hidden_dim),
+            nn.LeakyReLU(0.2)
+        )
+        # raise ValueError("Not Implemented yet!")
+
+        # Output layers for mean and log variance
+        self.fc_mu = nn.Linear(hidden_dim, latent_dim)
+        self.fc_logvar = nn.Linear(hidden_dim, latent_dim)
 
         # Decoder
         # Output the recon_x or mu_theta
-        raise ValueError("Not Implemented yet!")
+        self.decoder_input = nn.Linear(latent_dim, 7 * 7 * 128)
+        
+        self.decoder = nn.Sequential(
+            nn.Unflatten(1, (128, 7, 7)),
+            nn.ConvTranspose2d(128, 64, kernel_size=3, stride=1, padding=1),
+            nn.LeakyReLU(0.2),
+            nn.ConvTranspose2d(64, 32, kernel_size=4, stride=2, padding=1),
+            nn.LeakyReLU(0.2),
+            nn.ConvTranspose2d(32, 1, kernel_size=4, stride=2, padding=1),
+            nn.Sigmoid()
+        )
+        # raise ValueError("Not Implemented yet!")
 
     def encode(self, x):
         """ 
@@ -36,7 +62,10 @@ class VAE(nn.Module):
             - mu_phi, log (sigma_phi)^2
         """
         # TODO: 2.2.2 finish the encode code, input is x, output is mu_phi and log(sigma_theta)^2
-        raise ValueError("Not implemented yet!")
+        h = self.encoder(x)
+        mu = self.fc_mu(h)
+        log_var = self.fc_logvar(h)
+        # raise ValueError("Not implemented yet!")
         return mu, log_var
 
     def reparameterize(self, mu, log_var):
@@ -57,7 +86,9 @@ class VAE(nn.Module):
         """
         # TODO: 2.2.3 finish the decoding code, input is z, output is recon_x or mu_theta
         # Hint: output should be within [0, 1], maybe you can use torch.sigmoid()
-        raise ValueError("Not Implemented yet!")
+        h = self.decoder_input(z)
+        recon_x = self.decoder(h)
+        # raise ValueError("Not Implemented yet!")
         return recon_x
 
     def forward(self, x, labels):
@@ -68,7 +99,10 @@ class VAE(nn.Module):
         # maybe you have to change the shape to [batch_size, 28 * 28] if you use MLP model using view()
         # Hint2: maybe 3 or 4 lines of code is OK!
         # x = x.view(-1, 28 * 28)
-        raise ValueError("Not Implemented yet!")
+        mu, log_var = self.encode(x)
+        z = self.reparameterize(mu, log_var)
+        recon_x = self.decode(z, labels)
+        # raise ValueError("Not Implemented yet!")
         return recon_x, mu, log_var
 
 # TODO: 2.3 Calculate vae loss using input and output
@@ -87,8 +121,10 @@ def vae_loss(recon_x, x, mu, log_var, var=0.5):
     # Reconstruction loss (MSE or other recon loss)
     # KL divergence loss
     # Hint: Remember to normalize of batches, we need to cal the loss among all batches and return the mean!
-
-    raise ValueError("Not Implemented yet!")
+    recon_loss = F.mse_loss(recon_x.view(-1, 28 * 28), x.view(-1, 28 * 28), reduction='sum') / (2 * var)
+    kl_loss = -0.5 * torch.sum(1 + log_var - mu.pow(2) - log_var.exp())
+    loss = (recon_loss + kl_loss) / x.size(0)
+    # raise ValueError("Not Implemented yet!")
     return loss
 
 # TODO: 3 Design the model to finish generation task using label
