@@ -1,0 +1,6 @@
+# This script is used to train a VAE model with specific parameters and then run inference and grading on the generated outputs.
+python train.py --task Genwithlabel --epochs 50 --batch_size 1024 --lr 5e-3 --save_dir ./Gen_model_Conv3_50_1024_5e-3_20_0.25 --latent_dim 20 --var 0.25
+# After training, we run inference to generate outputs using the trained model.
+python inference.py --task Genwithlabel --checkpoint_path ./Genwithlabel/Gen_model_Conv3_50_1024_5e-3_20_0.25/epoch_50.pth --save_dir ./Genwithlabel/Gen_model_Conv3_50_1024_5e-3_20_0.25 --latent_dim 20
+# Finally, we grade the generated outputs using the specified output directory.
+python grade.py --Genwithlabel_output_dir ./Genwithlabel/Gen_model_Conv3_50_1024_5e-3_20_0.25
