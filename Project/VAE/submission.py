@@ -129,4 +129,68 @@ def vae_loss(recon_x, x, mu, log_var, var=0.5):
 
 # TODO: 3 Design the model to finish generation task using label
 class GenModel(nn.Module):
-    raise ValueError("Not Implemented yet!")
+    def __init__(self, input_dim=784, hidden_dim=400, latent_dim=20, num_classes=10):
+        super(GenModel, self).__init__()
+        
+        self.num_classes = num_classes
+
+        self.encoder = nn.Sequential(
+            nn.Conv2d(1, 32, kernel_size=4, stride=2, padding=1),  # 28x28 -> 14x14
+            nn.LeakyReLU(0.2),
+            nn.Conv2d(32, 64, kernel_size=4, stride=2, padding=1),  # 14x14 -> 7x7
+            nn.LeakyReLU(0.2),
+            nn.Conv2d(64, 128, kernel_size=3, stride=1, padding=1),  # 7x7 -> 7x7
+            nn.LeakyReLU(0.2),
+            nn.Flatten(),  # 7x7x128 = 6272
+            nn.Linear(6272, hidden_dim),
+            nn.LeakyReLU(0.2)
+        )
+       
+        self.fc_mu = nn.Linear(hidden_dim + num_classes, latent_dim)
+        self.fc_logvar = nn.Linear(hidden_dim + num_classes, latent_dim)
+
+        self.decoder_input = nn.Linear(latent_dim + num_classes, 7 * 7 * 128)
+        
+        self.decoder = nn.Sequential(
+            nn.Unflatten(1, (128, 7, 7)),
+            nn.ConvTranspose2d(128, 64, kernel_size=3, stride=1, padding=1),
+            nn.LeakyReLU(0.2),
+            nn.ConvTranspose2d(64, 32, kernel_size=4, stride=2, padding=1),
+            nn.LeakyReLU(0.2),
+            nn.ConvTranspose2d(32, 1, kernel_size=4, stride=2, padding=1),
+            nn.Sigmoid()
+        )
+
+    def encode(self, x, labels):
+        h = self.encoder(x) 
+        labels_onehot = F.one_hot(labels, num_classes=self.num_classes).float()
+        h_cat = torch.cat([h, labels_onehot], dim=1)
+        mu = self.fc_mu(h_cat)
+        log_var = self.fc_logvar(h_cat)
+        return mu, log_var
+
+    def reparameterize(self, mu, log_var):
+        std = torch.exp(0.5 * log_var)
+        eps = torch.randn_like(std)
+        return mu + eps * std
+
+    def decode(self, z, labels):
+        if labels.dim() == 0:
+            labels = labels.unsqueeze(0)
+        labels_onehot = F.one_hot(labels, num_classes=self.num_classes).float()
+        z_cat = torch.cat([z, labels_onehot], dim=1)
+        h = self.decoder_input(z_cat)
+        recon_x = self.decoder(h)
+        return recon_x
+
+    def forward(self, x, labels):
+        mu, log_var = self.encode(x, labels)
+        z = self.reparameterize(mu, log_var)
+        recon_x = self.decode(z, labels)
+        return recon_x, mu, log_var
+
+    def vae_loss(recon_x, x, mu, log_var, var=0.5):
+        recon_loss = F.mse_loss(recon_x.view(-1, 28 * 28), x.view(-1, 28 * 28), reduction='sum') / (2 * var)
+        kl_loss = -0.5 * torch.sum(1 + log_var - mu.pow(2) - log_var.exp())
+        loss = (recon_loss + kl_loss) / x.size(0)
+        return loss
